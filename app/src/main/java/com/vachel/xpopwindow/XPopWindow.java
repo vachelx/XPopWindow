@@ -230,6 +230,11 @@ public class XPopWindow extends RecyclerView.OnScrollListener implements Lifecyc
         showLoc[0] = (int) (location[0] + offsetX - mPopupWindowWidth / 2f + 0.5f);
         int marginOffsetX = adjustMarginHorizontal(showLoc);
         showLoc[1] = mIsShowBottom ? (int) (location[1] + mAnchorView.getHeight() + 0.5f) : (int) (location[1] - mPopupWindowHeight + 0.5f);
+        // 很高的mAnchorView超出屏幕高度时，默认显示在条目中间
+        if (mIsShowBottom && showLoc[1] + mPopupWindowHeight > Utils.getScreenHeight(mContext)) {
+            // 显示在下方时超过屏幕高度了,这时候显示在mAnchorView的中间
+            showLoc[1] = Math.max(location[1], mReversalHeight) / 2 + Math.min(showLoc[1], Utils.getScreenHeight(mContext) - mPopupWindowHeight) / 2;
+        }
         translateIndicator(location[0], marginOffsetX);
         mPopupWindow.showAtLocation(mAnchorView, Gravity.NO_GRAVITY, showLoc[0], showLoc[1]);
         mHasShow = true;
