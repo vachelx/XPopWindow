@@ -30,6 +30,10 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.core.content.ContextCompat;
+import androidx.lifecycle.Lifecycle;
+import androidx.lifecycle.LifecycleObserver;
+import androidx.lifecycle.LifecycleOwner;
+import androidx.lifecycle.OnLifecycleEvent;
 import androidx.recyclerview.widget.DividerItemDecoration;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -39,6 +43,7 @@ import com.vachel.xpopwindow.util.Utils;
 /**
  * 用法参照      XPopWindow.build(MainActivity.this, view)
  *                         .bindRecyclerView(recycleView)
+ *                         .bindLifeCycle(lifecycleOwner)
  *                         .setItems(items)
  *                         .setIcons(icons)
  *                         .setDividerVerticalEnable(true)
@@ -46,7 +51,7 @@ import com.vachel.xpopwindow.util.Utils;
  *                         .setListener(MainActivity.this)
  *                         .show();
  */
-public class XPopWindow extends RecyclerView.OnScrollListener {
+public class XPopWindow extends RecyclerView.OnScrollListener implements LifecycleObserver, PopupWindow.OnDismissListener {
     private static final float DEFAULT_TEXT_SIZE_DP = 14;
     private static final float DEFAULT_PADDING_DP = 5.0f;
     private static final int DEFAULT_BACKGROUND_RADIUS_DP = 6;
@@ -93,7 +98,7 @@ public class XPopWindow extends RecyclerView.OnScrollListener {
     private boolean mDividerVerticalEnable;
     private RecyclerView mBindRecyclerView;
     private int mScrollState = -1;
-
+    private Lifecycle mLifecycle;
 
     // anchorView决定了显示位置； 显示箭头会对齐anchorView中点
     public static XPopWindow build(Context context, View anchorView) {
@@ -135,6 +140,12 @@ public class XPopWindow extends RecyclerView.OnScrollListener {
 
     public XPopWindow setListener(IXPopupListener listener) {
         mIXPopupListener = listener;
+        return this;
+    }
+
+    public XPopWindow bindLifeCycle(LifecycleOwner lifecycleOwner) {
+        // 生命周期绑定不在这里而是show时才监听
+        mLifecycle = lifecycleOwner.getLifecycle();
         return this;
     }
 
@@ -222,28 +233,16 @@ public class XPopWindow extends RecyclerView.OnScrollListener {
         translateIndicator(location[0], marginOffsetX);
         mPopupWindow.showAtLocation(mAnchorView, Gravity.NO_GRAVITY, showLoc[0], showLoc[1]);
         mHasShow = true;
+        if (mLifecycle != null) {
+            mLifecycle.addObserver(this);
+        }
         // mScrollState==1时是还在滚动中途调用的show，这时候不需要重置
         if (mBindRecyclerView != null && mScrollState != 1) {
             mBindRecyclerView.removeOnScrollListener(XPopWindow.this);
             mScrollState = -1;
             mBindRecyclerView.addOnScrollListener(this);
-            mPopupWindow.setOnDismissListener(new PopupWindow.OnDismissListener() {
-                @Override
-                public void onDismiss() {
-                    mHasShow = false;
-                    if (mScrollState == -1) {
-                        mBindRecyclerView.removeOnScrollListener(XPopWindow.this);
-                    }
-                }
-            });
-        } else {
-            mPopupWindow.setOnDismissListener(new PopupWindow.OnDismissListener() {
-                @Override
-                public void onDismiss() {
-                    mHasShow = false;
-                }
-            });
         }
+        mPopupWindow.setOnDismissListener(this);
     }
 
     /**
@@ -330,7 +329,7 @@ public class XPopWindow extends RecyclerView.OnScrollListener {
         popupListContainer.addView(recyclerView);
         // 根据显示位置在屏幕位置确定window显示在mAnchorView的上方还是下方
         int mPopupHeight = getViewHeight(popupListContainer) + mIndicatorHeight;
-        mIsShowBottom = location[1] - mReversalHeight - mPopupHeight < dp2px(16);
+        mIsShowBottom = location[1] - mReversalHeight - mPopupHeight < dp2px(2);
         if (!mIsShowBottom) {
             contentView.addView(mIndicatorView);
         } else {
@@ -630,6 +629,23 @@ public class XPopWindow extends RecyclerView.OnScrollListener {
             dismiss();
             recyclerView.removeCallbacks(mDelayRunnable);
             recyclerView.postDelayed(mDelayRunnable, 400);
+        }
+    }
+
+    @OnLifecycleEvent(Lifecycle.Event.ON_STOP)
+    public void onStop() {
+        dismiss();
+        mHasShow = false;
+    }
+
+    @Override
+    public void onDismiss() {
+        mHasShow = false;
+        if (mScrollState == -1 && mBindRecyclerView != null) {
+            mBindRecyclerView.removeOnScrollListener(this);
+        }
+        if (mLifecycle != null) {
+            mLifecycle.removeObserver(this);
         }
     }
 

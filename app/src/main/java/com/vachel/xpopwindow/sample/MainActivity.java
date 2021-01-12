@@ -49,6 +49,7 @@ public class MainActivity extends AppCompatActivity implements XPopWindow.IXPopu
                 // 长按展示气泡
                 XPopWindow.build(MainActivity.this, view)
                         .bindRecyclerView(recycleView)
+                        .bindLifeCycle(MainActivity.this)
                         .setItems(items)
                         .setIcons(icons)
                         .setDividerVerticalEnable(true)
